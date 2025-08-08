@@ -10,3 +10,8 @@ bs4
 gunicorn
 flask-cors
 pytz
+pymongo
+flask-sock
+aiohttp
+python-dotenv
+livekit-api
