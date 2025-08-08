@@ -101,10 +101,10 @@ def getNewFromAPi():
         
         # Get database instance
         db = get_db()
-        
+        print(today_date,"todayyyyyy")
         # Check if today's news already exists in daily collection
         existing_daily_news = db.find_one("daily", {"date": today_date})
-        
+        print(existing_daily_news,"existing_daily_news")
         if existing_daily_news:
             print(f"Found cached news for date: {today_date}")
             # Remove MongoDB-specific fields before returning
