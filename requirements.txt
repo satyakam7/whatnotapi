@@ -15,3 +15,8 @@ flask-sock
 aiohttp
 python-dotenv
 livekit-api
+flask-cors
+flask-sock
+livekit-api
+aiohttp
+bson

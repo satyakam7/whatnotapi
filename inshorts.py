@@ -4,6 +4,7 @@ import uuid
 import requests
 import pytz
 from database import get_db
+from gemini_integration import generate_chats_batch
 
 
 headers = {
@@ -91,6 +92,7 @@ def getNews(category):
 
 
 
+
 def getNewFromAPi():
     try:
         # Get today's date in ddmmyyyy format
@@ -155,19 +157,34 @@ def getNewFromAPi():
                     "id": source_id,
                     "name": source_name
                 },
-                "cached_at": datetime.datetime.utcnow().isoformat()
+                "cached_at": datetime.datetime.utcnow().isoformat(),
+                "chats": []  # Will be populated by Gemini
             }
             processed_articles.append(processed_article)
-            
-            # Save individual article to news collection
+        
+        # Get system prompt from Google Sheets
+        try:
+            sys_prompt = fetch_prompt_from_sheet()
+            print("Fetched system prompt from Google Sheets")
+        except Exception as e:
+            print(f"Error fetching prompt: {e}")
+            sys_prompt = "You are a helpful news assistant. Explain news articles in a conversational way using Hindi-English mix."
+        
+        # Generate chats for all articles using Gemini
+        print("Generating chats for articles using Gemini AI...")
+        gemini_api_key = "AIzaSyA0mSmGq-SZ57Nzutk1TD3dGxcQC98LnZw"
+        processed_articles = generate_chats_batch(processed_articles, sys_prompt, gemini_api_key)
+        
+        # Save individual articles to news collection
+        for processed_article in processed_articles:
             try:
                 # Check if article already exists (by URL to avoid duplicates)
-                existing_article = db.find_one("news", {"url": article.get("url")})
+                existing_article = db.find_one("news", {"url": processed_article.get("url")})
                 if not existing_article:
                     db.insert_one("news", processed_article)
-                    print(f"Saved article: {article.get('title', 'Unknown title')}")
+                    print(f"Saved article with chats: {processed_article.get('title', 'Unknown title')}")
                 else:
-                    print(f"Article already exists: {article.get('title', 'Unknown title')}")
+                    print(f"Article already exists: {processed_article.get('title', 'Unknown title')}")
             except Exception as e:
                 print(f"Error saving individual article: {e}")
         
@@ -177,12 +194,14 @@ def getNewFromAPi():
             "data": processed_articles,
             "total_articles": len(processed_articles),
             "api_response_status": api_data.get("status"),
-            "cached_at": datetime.datetime.utcnow().isoformat()
+            "cached_at": datetime.datetime.utcnow().isoformat(),
+            "chats_generated": True,
+            "system_prompt_used": sys_prompt[:100] + "..." if len(sys_prompt) > 100 else sys_prompt
         }
         
         try:
             db.insert_one("daily", daily_entry)
-            print(f"Saved daily cache for {today_date} with {len(processed_articles)} articles")
+            print(f"Saved daily cache for {today_date} with {len(processed_articles)} articles and chats")
         except Exception as e:
             print(f"Error saving daily cache: {e}")
         
@@ -192,7 +211,8 @@ def getNewFromAPi():
             "totalResults": len(processed_articles),
             "articles": processed_articles,
             "source": "api",
-            "cached_date": today_date
+            "cached_date": today_date,
+            "chats_generated": True
         }
         
     except Exception as e:
@@ -201,23 +221,28 @@ def getNewFromAPi():
             "status": "error",
             "message": str(e)
         }
-    
-
-
-
 
 def fetch_prompt_from_sheet():
+    """
+    Fetch system prompt from Google Sheets CSV
+    """
     csv_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcbyRJdN_iIMtgncjishiFKSo-PwkoAfdwUHogw94_h3WQFcmXwNlRD9sBAB3nRXmvS0qNtNKx5GEb/pub?output=csv"
     
-    res = requests.get(csv_url)
-    res.raise_for_status()  # Raise error if request fails
-    
-    text = res.text.strip()  # Get CSV as string
-    rows = text.split("\n")  # Split into rows
-    
-    prompt = text  # Right now returning entire CSV content
-    return prompt
-
+    try:
+        res = requests.get(csv_url, timeout=10)
+        res.raise_for_status()  # Raise error if request fails
+        
+        text = res.text.strip()  # Get CSV as string
+        
+        # If it's a CSV with headers, you might want to parse it properly
+        # For now, returning the entire content as requested
+        return text
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching prompt from sheet: {e}")
+        # Return a default prompt if sheet fetch fails
+        return """You are a helpful news assistant. Explain news articles in a conversational way using Hindi-English mix (Hinglish). 
+        Break down complex topics into simple, engaging sentences. Use casual language that young people would understand. 
+        Make it sound like you're chatting with a friend about the news."""
 
 prompt = fetch_prompt_from_sheet()
 print(prompt)
