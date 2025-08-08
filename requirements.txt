@@ -10,7 +10,7 @@ bs4
 gunicorn
 flask-cors
 pytz
-pymongo
+pymongo==4.5.0
 flask-sock
 aiohttp
 python-dotenv
@@ -19,4 +19,3 @@ flask-cors
 flask-sock
 livekit-api
 aiohttp
-bson
